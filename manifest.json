@@ -1,0 +1,34 @@
+{
+    "manifest_version": 2,
+    "name": "Omnivore pop",
+    "version": "1.0",
+    "permissions": [
+        "activeTab",
+        "storage",
+        "https://api-prod.omnivore.app/api/graphql"
+    ],
+    "commands": {
+        "pop-visit": {
+            "suggested_key": {
+                "default": "Ctrl+O",
+                "mac": "Command+O"
+            },
+            "description": "Pop Omnivore list and go to the tab"
+        },
+        "pop-nonvisit": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+O",
+                "mac": "Command+Shift+O"
+            },
+            "description": "Pop Omnivore list without going to the tab"
+        }
+    },
+    "browser_action": {
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "scripts": ["background.js"],
+        "persistent": true,
+        "commands": ["pop"]
+    }
+}
