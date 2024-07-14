@@ -1,5 +1,6 @@
 const apiUrl = 'https://api-prod.omnivore.app/api/graphql';
-let apiKey = '';
+const requestRetries = 20;
+const batchSize = 10;
 const apiQueries = {
     search: `
         query Search($after: String, $first: Int, $query: String) {
@@ -31,6 +32,7 @@ const apiQueries = {
             }
         }`,
 }
+let apiKey = '';
 let nodes = [];
 updateNodeList();
 
@@ -44,25 +46,29 @@ async function getApiKey() {
 }
 
 async function updateNodeList() {
-    // Make a request to the Omnivore API to get the top links
     apiKey = await getApiKey();
-    const searchResponse = await fetch(apiUrl, {
-        body: JSON.stringify({
-            query: apiQueries.search,
-            variables: {
-                after: String(0),
-                first: 10,
-                query: 'in:inbox sort:saved-asc'
-            }
-        }),
-        headers: {
-            Authorization: apiKey,
-            'Content-Type': 'application/json',
-        },
-        method: 'POST',
-    })
-    if (!searchResponse.ok) {
-        throw new Error(`HTTP error! status: ${searchResponse.status}`);
+
+    let responseOk = false;
+    let searchResponse = null;
+    retries = 0;
+    while (!responseOk && retries < requestRetries) {
+        searchResponse = await fetch(apiUrl, {
+            body: JSON.stringify({
+                query: apiQueries.search,
+                variables: {
+                    after: String(0),
+                    first: batchSize,
+                    query: 'in:inbox sort:saved-asc'
+                }
+            }),
+            headers: {
+                Authorization: apiKey,
+                'Content-Type': 'application/json',
+            },
+            method: 'POST',
+        })
+        responseOk = searchResponse.ok;
+        retries++;
     }
 
     // Update the node list
@@ -87,24 +93,29 @@ chrome.commands.onCommand.addListener(async function (command) {
 
     // Archive the link
     apiKey = await getApiKey();
-    const archiveResponse = await fetch(apiUrl, {
-        body: JSON.stringify({
-            query: apiQueries.setLinkArchived,
-            variables: {
-                input: {
-                    archived: true,
-                    linkId: nodeToPop.id,
-                },
-            }
-        }),
-        headers: {
-            Authorization: apiKey,
-            'Content-Type': 'application/json',
-        },
-        method: 'POST',
-    })
-    if (!archiveResponse.ok) {
-        throw new Error(`HTTP error! status: ${archiveResponse.status}`);
+
+    let responseOk = false;
+    let archiveResponse = null;
+    retries = 0;
+    while (!responseOk && retries < requestRetries) {
+        archiveResponse = await fetch(apiUrl, {
+            body: JSON.stringify({
+                query: apiQueries.setLinkArchived,
+                variables: {
+                    input: {
+                        archived: true,
+                        linkId: nodeToPop.id,
+                    },
+                }
+            }),
+            headers: {
+                Authorization: apiKey,
+                'Content-Type': 'application/json',
+            },
+            method: 'POST',
+        })
+        responseOk = archiveResponse.ok;
+        retries++;
     }
 
     // Update the node list
