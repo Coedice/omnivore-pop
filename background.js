@@ -34,6 +34,7 @@ const apiQueries = {
 }
 let apiKey = '';
 let nodes = [];
+let archivedNodeIds = new Set();
 updateNodeList();
 
 async function getApiKey() {
@@ -47,10 +48,9 @@ async function getApiKey() {
 
 async function updateNodeList() {
     apiKey = await getApiKey();
-
     let responseOk = false;
     let searchResponse = null;
-    retries = 0;
+    let retries = 0;
     while (!responseOk && retries < requestRetries) {
         searchResponse = await fetch(apiUrl, {
             body: JSON.stringify({
@@ -75,28 +75,34 @@ async function updateNodeList() {
     nodes = (await searchResponse.json()).data.search.edges.map(edge => edge.node);
 }
 
-chrome.commands.onCommand.addListener(async function (command) {
-    if (command !== "pop-visit" && command !== "pop-nonvisit") {
+async function popNodes(command) {
+    // Get the top link that is not archived
+    let nodeToPop = null;
+    for (let i = 0; i < nodes.length; i++) {
+        if (!archivedNodeIds.has(nodes[i].id)) {
+            nodeToPop = nodes[i];
+            break;
+        }
+    }
+    if (nodeToPop === null) {
+        await updateNodeList();
+        if (nodes.length > 0) {
+            popNodes(command);
+        }
         return;
     }
-
-    // Update the node list if it is empty
-    if (nodes.length === 0) {
-        await updateNodeList();
-    }
-
-    // Get the top link
-    const nodeToPop = nodes.shift();
 
     // Open the link in a new tab
     chrome.tabs.create({ url: nodeToPop.url, active: command === "pop-visit" });
 
-    // Archive the link
-    apiKey = await getApiKey();
+    // Mark the node as archived
+    archivedNodeIds.add(nodeToPop.id);
 
+    // Archive the node in Omnivore
+    apiKey = await getApiKey();
     let responseOk = false;
     let archiveResponse = null;
-    retries = 0;
+    let retries = 0;
     while (!responseOk && retries < requestRetries) {
         archiveResponse = await fetch(apiUrl, {
             body: JSON.stringify({
@@ -118,6 +124,15 @@ chrome.commands.onCommand.addListener(async function (command) {
         retries++;
     }
 
-    // Update the node list
+    if (!responseOk) {
+        archivedNodeIds.delete(nodeToPop.id);
+    }
     updateNodeList();
+}
+
+chrome.commands.onCommand.addListener(async function (command) {
+    if (command !== "pop-visit" && command !== "pop-nonvisit") {
+        return;
+    }
+    popNodes(command);
 });
