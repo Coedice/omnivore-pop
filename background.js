@@ -1,6 +1,7 @@
 const apiUrl = 'https://api-prod.omnivore.app/api/graphql';
 const requestRetries = 20;
 const batchSize = 10;
+const archiveClearDelayMilliseconds = 10 * 60 * 1000; // 10 minutes
 const apiQueries = {
     search: `
         query Search($after: String, $first: Int, $query: String) {
@@ -124,7 +125,18 @@ async function popNodes(command) {
         retries++;
     }
 
-    if (!responseOk) {
+    // React to the response
+    if (responseOk) {
+        // Remove node from archived list after delay
+        setTimeout(
+            () => {
+                archivedNodeIds.delete(nodeToPop.id);
+                updateNodeList();
+            },
+            archiveClearDelayMilliseconds,
+        );
+    }
+    else {
         archivedNodeIds.delete(nodeToPop.id);
     }
     updateNodeList();
